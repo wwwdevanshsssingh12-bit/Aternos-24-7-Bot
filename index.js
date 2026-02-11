@@ -1,93 +1,122 @@
 const mineflayer = require('mineflayer')
 const express = require('express')
+const { pathfinder, Movements, goals } = require('mineflayer-pathfinder')
+const { GoalNear } = goals
 
-// --- 1. KEEP-ALIVE WEB SERVER (For Render/UptimeRobot) ---
+// --- 1. KEEP-ALIVE WEB SERVER (For Render) ---
 const app = express()
 const port = process.env.PORT || 3000
 
-app.get('/', (req, res) => {
-  res.send('I am alive! Bot is running.')
-})
+app.get('/', (req, res) => res.send('OP Bot is active and pathfinding!'))
+app.listen(port, () => console.log(`Web server running on port ${port}`))
 
-app.listen(port, () => {
-  console.log(`Web server is listening on port ${port}`)
-})
-
-// --- 2. BOT CONFIGURATION ---
+// --- 2. BOT SETTINGS ---
 const config = {
-  // Use the DynIP from your screenshots to avoid connection blocks
-  host: 'bonito.aternos.host', 
-  port: 15754,       
-  version: "1.21.1", 
-  baseUsername: 'Devansh_Pro' 
+  host: 'Blasters.aternos.me', // Your Server IP
+  port: 15754,                 // Your Port
+  version: "1.21.1",           // Force Version to fix crashes
+  baseUsername: 'OP_Guardian'  
 }
 
-let bot
-
-// --- 3. BOT FUNCTIONS ---
-
-// Generate a random username so Aternos doesn't block "Duplicate User"
-function getUsername() {
-  return config.baseUsername + '_' + Math.floor(Math.random() * 1000)
-}
-
+// --- 3. THE INTELLIGENT BOT ---
 function createBot() {
-  const currentUsername = getUsername()
-  console.log(`[INIT] Connecting to server as ${currentUsername}...`)
+  const username = config.baseUsername + '_' + Math.floor(Math.random() * 1000)
+  
+  console.log(`[INIT] Connecting as ${username}...`)
 
-  bot = mineflayer.createBot({
+  const bot = mineflayer.createBot({
     host: config.host,
     port: config.port,
-    username: currentUsername,
+    username: username,
     version: config.version,
-    // Optimization to save RAM on Render/Termux
-    viewDistance: 'tiny',
-    colorsEnabled: false,
-    skinParts: { showJacket: false, showHat: false, showCape: false, showLeftSleeve: false, showRightSleeve: false, showLeftPants: false, showRightPants: false }
+    auth: 'offline',
+    checkTimeoutInterval: 60 * 1000, 
+    viewDistance: 'tiny'
   })
 
-  // Event: Bot succesfully joined
+  // Load the Pathfinding Plugin
+  bot.loadPlugin(pathfinder)
+
+  // --- EVENTS ---
+
   bot.on('login', () => {
-    console.log(`[SUCCESS] ${currentUsername} has joined the server!`)
-    bot.chat('I am online and keeping the server alive.')
+    console.log(`[SUCCESS] ${username} joined!`)
+    bot.chat('I am online and moving!')
   })
 
-  // Event: Anti-AFK (Look around and jump occasionally)
   bot.on('spawn', () => {
-    console.log('[INFO] Bot spawned, starting Anti-AFK...')
-    setInterval(() => {
-      // Look in random directions
-      const yaw = Math.random() * Math.PI - (0.5 * Math.PI)
-      const pitch = Math.random() * Math.PI - (0.5 * Math.PI)
-      bot.look(yaw, pitch)
-      
-      // Swing arm
-      if (Math.random() > 0.5) bot.swingArm()
-      
-      // Jump if on ground (helps prevent idle kicks)
-      if (Math.random() > 0.8 && bot.entity.onGround) {
-        bot.setControlState('jump', true)
-        bot.setControlState('jump', false)
-      }
-    }, 45000) // Run every 45 seconds
+    console.log('[INFO] AI activated. Starting random movements...')
+    startOverpoweredAntiAfk(bot)
   })
 
-  // Event: Error Handling (Don't crash, just log it)
-  bot.on('error', (err) => {
-    console.log(`[ERROR] ${err.message}`)
+  bot.on('end', (reason) => {
+    console.log(`[DISCONNECT] Reason: ${reason}`)
+    console.log('[RECONNECT] Restarting in 30 seconds...')
+    setTimeout(createBot, 30000)
   })
 
-  // Event: Disconnected (Auto-Reconnect)
-  bot.on('end', () => {
-    console.log('[WARN] Bot disconnected! Reconnecting in 30 seconds...')
-    setTimeout(createBot, 30000) // Wait 30s before trying again
-  })
-
-  // Event: Kicked (Log the reason)
-  bot.on('kicked', (reason) => {
-    console.log(`[KICKED] Reason: ${reason}`)
-  })
+  bot.on('error', (err) => console.log(`[ERROR] ${err.message}`))
 }
 
-// Start the bot
+// --- 4. OVERPOWERED ANTI-AFK LOGIC ---
+function startOverpoweredAntiAfk(bot) {
+  // Set up the "physics" for the bot (so it knows how to walk)
+  const defaultMove = new Movements(bot)
+  defaultMove.allow1by1towers = false // Don't build weird towers
+  bot.pathfinder.setMovements(defaultMove)
+
+  // Loop every 10-20 seconds to decide what to do
+  setInterval(() => {
+    
+    // ACTION 1: AUTO-SWIM (If in water)
+    if (bot.entity.isInWater) {
+      console.log('[ACTION] Swimming...')
+      bot.setControlState('jump', true) // Swim up
+      bot.setControlState('sprint', true) // Swim fast
+      setTimeout(() => {
+         bot.setControlState('jump', false)
+         bot.setControlState('sprint', false)
+      }, 2000)
+      return // Skip walking if swimming
+    }
+
+    // ACTION 2: RANDOM WALK (Smart Pathfinding)
+    if (!bot.pathfinder.isMoving()) {
+      const entity = bot.entity
+      // Pick a random spot 5-10 blocks away
+      const range = 5 + Math.random() * 5 
+      const randomX = (Math.random() - 0.5) * range * 2
+      const randomZ = (Math.random() - 0.5) * range * 2
+      
+      const goal = new GoalNear(
+        entity.position.x + randomX, 
+        entity.position.y, 
+        entity.position.z + randomZ, 
+        1
+      )
+      
+      console.log(`[ACTION] Walking to new spot...`)
+      bot.pathfinder.setGoal(goal).catch(err => {
+        // If it can't walk there, just jump and look around
+        console.log('[INFO] Path failed, doing backup jump.')
+        randomLook(bot)
+        bot.setControlState('jump', true)
+        setTimeout(() => bot.setControlState('jump', false), 500)
+      })
+    }
+  }, 15000) // Runs every 15 seconds
+
+  // ACTION 3: CONSTANT HEAD ROTATION (Looks very real)
+  setInterval(() => {
+    randomLook(bot)
+  }, 3000)
+}
+
+function randomLook(bot) {
+  const yaw = Math.random() * Math.PI - (0.5 * Math.PI)
+  const pitch = Math.random() * Math.PI - (0.5 * Math.PI)
+  bot.look(yaw, pitch)
+}
+
 createBot()
+        
