@@ -1,13 +1,14 @@
 {
-  "name": "immortal-aternos-bot",
-  "version": "1.0.0",
-  "description": "A 24/7 Aternos Bot hosted on Render",
+  "name": "op-aternos-bot",
+  "version": "2.0.0",
+  "description": "Advanced AI Bot with Pathfinding and Auto-Swim",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "mineflayer": "^4.20.1",
+    "mineflayer": "latest",
+    "mineflayer-pathfinder": "^2.4.5",
     "express": "^4.19.2"
   },
   "engines": {
