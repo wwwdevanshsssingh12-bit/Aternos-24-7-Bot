@@ -18,7 +18,7 @@ const config = {
   // Use the DynIP from your screenshots to avoid connection blocks
   host: 'bonito.aternos.host', 
   port: 15754,       
-  version: "1.21.11", 
+  version: "1.21.1", 
   baseUsername: 'Devansh_Pro' 
 }
 
