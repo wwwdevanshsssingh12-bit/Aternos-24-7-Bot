@@ -4,7 +4,7 @@ const mineflayer = require('mineflayer')
 const config = {
   host: 'Blasters.aternos.me', // <--- PUT IP HERE
   port: 15754,
-  version: false, 
+  version: "1.21.1",
   baseUsername: 'Devansh_Bot'
 }
 
