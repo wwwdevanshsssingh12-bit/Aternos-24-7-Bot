@@ -1,11 +1,16 @@
 {
   "name": "immortal-aternos-bot",
   "version": "1.0.0",
+  "description": "A 24/7 Aternos Bot hosted on Render",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "mineflayer": "^4.20.1"
+    "mineflayer": "^4.20.1",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
