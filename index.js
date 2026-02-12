@@ -12,7 +12,7 @@ app.listen(port, () => console.log(`Web server running on port ${port}`))
 
 // --- 2. BOT SETTINGS ---
 const config = {
-  host: 'Blasters.aternos.me', // Your Server IP
+  host: 'mantaray.aternos.host', // Your Server IP
   port: 15754,                 // Your Port
   version: "1.21.1",           // Force 1.21.1 (Fixes Version Mismatch)
   baseUsername: 'OP_Guardian'  
