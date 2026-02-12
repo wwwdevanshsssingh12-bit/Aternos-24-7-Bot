@@ -12,7 +12,7 @@ app.listen(port, () => console.log(`Web server running on port ${port}`))
 // --- 2. BOT SETTINGS ---
 const config = {
   // ⚠️ IMPORTANT: Use the DynIP (e.g., lion.aternos.host) from the Connect page!
-  host: 'mantaray.aternos.host', 
+  host: 'hammerjaw.aternos.host', 
   port: 15754,
   version: "1.21.1",
   baseUsername: 'OP_Guardian'
