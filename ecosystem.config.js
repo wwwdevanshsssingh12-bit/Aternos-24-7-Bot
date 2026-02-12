@@ -1,12 +1,16 @@
 module.exports = {
   apps: [{
-    name: "aternos-bot",
+    name: "Guardian_Bot",
     script: "./index.js",
-    instances: 1,
-    autorestart: true,
     watch: false,
-    max_memory_restart: '220M', // <--- Restart if it hits 220MB
-    node_args: "--max-old-space-size=200", // <--- Force Node to use max 200MB
-    exp_backoff_restart_delay: 100
+    // 1. Auto-Restart if it crashes
+    autorestart: true,
+    // 2. Restart if it uses too much RAM (Prevents phone lag)
+    max_memory_restart: "300M",
+    // 3. Wait 10s between restarts so you don't get IP banned
+    restart_delay: 10000,
+    // 4. Log settings (Turn off to save space if needed)
+    out_file: "/dev/null",
+    error_file: "/dev/null"
   }]
 }
