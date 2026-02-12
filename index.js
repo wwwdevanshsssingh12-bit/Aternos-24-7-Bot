@@ -14,7 +14,7 @@ app.listen(port, () => console.log(`Web server running on port ${port}`))
 const config = {
   host: 'Blasters.aternos.me', // Your Server IP
   port: 15754,                 // Your Port
-  version: "1.21.1",           // Force Version to fix crashes
+  version: "1.21.1",           // Force 1.21.1 (Fixes Version Mismatch)
   baseUsername: 'OP_Guardian'  
 }
 
@@ -56,28 +56,29 @@ function createBot() {
   })
 
   bot.on('error', (err) => console.log(`[ERROR] ${err.message}`))
+  
+  bot.on('kicked', (reason) => console.log(`[KICKED] Reason: ${reason}`))
 }
 
 // --- 4. OVERPOWERED ANTI-AFK LOGIC ---
 function startOverpoweredAntiAfk(bot) {
-  // Set up the "physics" for the bot (so it knows how to walk)
+  // Set up the "physics" for the bot
   const defaultMove = new Movements(bot)
-  defaultMove.allow1by1towers = false // Don't build weird towers
+  defaultMove.allow1by1towers = false 
+  defaultMove.canDig = false // Don't break blocks
   bot.pathfinder.setMovements(defaultMove)
 
-  // Loop every 10-20 seconds to decide what to do
+  // Loop every 15 seconds to decide what to do
   setInterval(() => {
     
-    // ACTION 1: AUTO-SWIM (If in water)
+    // ACTION 1: AUTO-SWIM (Priority)
     if (bot.entity.isInWater) {
       console.log('[ACTION] Swimming...')
       bot.setControlState('jump', true) // Swim up
-      bot.setControlState('sprint', true) // Swim fast
-      setTimeout(() => {
-         bot.setControlState('jump', false)
-         bot.setControlState('sprint', false)
-      }, 2000)
+      bot.setControlState('sprint', true) 
       return // Skip walking if swimming
+    } else {
+      bot.setControlState('jump', false) // Stop jumping if out of water
     }
 
     // ACTION 2: RANDOM WALK (Smart Pathfinding)
@@ -96,27 +97,23 @@ function startOverpoweredAntiAfk(bot) {
       )
       
       console.log(`[ACTION] Walking to new spot...`)
-      bot.pathfinder.setGoal(goal).catch(err => {
-        // If it can't walk there, just jump and look around
-        console.log('[INFO] Path failed, doing backup jump.')
-        randomLook(bot)
-        bot.setControlState('jump', true)
-        setTimeout(() => bot.setControlState('jump', false), 500)
-      })
+      
+      // FIX: Do not use .catch() here, it causes the crash.
+      try {
+        bot.pathfinder.setGoal(goal)
+      } catch (err) {
+        console.log("[WARN] Pathfinding error (ignored)")
+      }
     }
-  }, 15000) // Runs every 15 seconds
+  }, 15000) 
 
-  // ACTION 3: CONSTANT HEAD ROTATION (Looks very real)
+  // ACTION 3: CONSTANT HEAD ROTATION 
   setInterval(() => {
-    randomLook(bot)
+    const yaw = Math.random() * Math.PI - (0.5 * Math.PI)
+    const pitch = Math.random() * Math.PI - (0.5 * Math.PI)
+    bot.look(yaw, pitch)
   }, 3000)
 }
 
-function randomLook(bot) {
-  const yaw = Math.random() * Math.PI - (0.5 * Math.PI)
-  const pitch = Math.random() * Math.PI - (0.5 * Math.PI)
-  bot.look(yaw, pitch)
-}
-
 createBot()
-        
+  
