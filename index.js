@@ -3,19 +3,19 @@ const { pathfinder, Movements, goals } = require('mineflayer-pathfinder')
 const { GoalNear } = goals
 
 const config = {
-  host: 'Blasters.aternos.me', // Main IP usually works on Termux!
-  port: 15754,                 // Check Aternos for the current port
-  version: "1.21.1",           // Forces stability
+  // Try the MAIN IP first on Termux. If it fails, use the DynIP.
+  host: 'Blasters.aternos.me', 
+  port: 15754,       
+  version: "1.21.1", 
   username: 'Immortal_Bot'
 }
 
 let bot
 
 function createBot() {
-  // Random name prevents "Already Logged In" error
   const name = config.username + '_' + Math.floor(Math.random() * 999)
   
-  // Minimal logging to save battery
+  // Only log start/end to keep Termux clean
   console.log(`[START] Connecting as ${name}...`)
 
   bot = mineflayer.createBot({
@@ -24,31 +24,21 @@ function createBot() {
     username: name,
     version: config.version,
     auth: 'offline',
-    // LOW POWER MODE SETTINGS
-    viewDistance: 'tiny',       // Don't load far chunks (Saves RAM)
-    colorsEnabled: false,       // Plain text logs (Saves CPU)
-    physicsEnabled: true,       // Needed for AI, but we limit it below
-    checkTimeoutInterval: 60000 // Wait 60s before timing out
+    // LOW BATTERY MODE
+    viewDistance: 'tiny',
+    colorsEnabled: false,
+    checkTimeoutInterval: 60000
   })
 
   bot.loadPlugin(pathfinder)
 
-  bot.on('login', () => {
-    console.log(`[ONLINE] Bot is hidden and running.`)
-  })
-
-  bot.on('spawn', () => {
-    startStealthMovement(bot)
-  })
-
-  bot.on('end', (reason) => {
-    console.log(`[OFFLINE] Reconnecting in 30s...`)
-    setTimeout(createBot, 30000)
-  })
+  bot.on('login', () => console.log(`[ONLINE] Bot is hidden and active.`))
+  bot.on('spawn', () => startStealthMovement(bot))
   
-  // Hide errors to keep terminal clean
-  bot.on('error', () => {}) 
-  bot.on('kicked', () => {})
+  // PM2 handles the restart, so we just exit the process on error
+  bot.on('end', () => process.exit(0))
+  bot.on('error', () => process.exit(0))
+  bot.on('kicked', () => process.exit(0))
 }
 
 function startStealthMovement(bot) {
@@ -57,11 +47,11 @@ function startStealthMovement(bot) {
   moves.allow1by1towers = false
   bot.pathfinder.setMovements(moves)
 
-  // Move rarely (every 45 seconds) to save battery/heat
+  // Move rarely (every 60s) to save battery
   setInterval(() => {
     if (!bot || !bot.entity) return
 
-    // 1. Anti-Drown (Only runs if in water)
+    // Anti-Drown
     if (bot.entity.isInWater) {
       bot.setControlState('jump', true)
       return
@@ -69,15 +59,14 @@ function startStealthMovement(bot) {
       bot.setControlState('jump', false)
     }
 
-    // 2. Small random movements
+    // Micro-movements
     if (!bot.pathfinder.isMoving()) {
       const p = bot.entity.position
-      // Move only 2-3 blocks (very light calculation)
+      // Move 2 blocks randomly
       const goal = new GoalNear(p.x + (Math.random()*4-2), p.y, p.z + (Math.random()*4-2), 1)
-      
       try { bot.pathfinder.setGoal(goal) } catch (e) {}
     }
-  }, 45000) 
+  }, 60000) 
 }
 
 createBot()
