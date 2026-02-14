@@ -3,7 +3,7 @@ const { pathfinder, Movements, goals } = require('mineflayer-pathfinder')
 const { GoalNear } = goals
 
 const config = {
-  // Try the MAIN IP first on Termux. If it fails, use the DynIP.
+  // ⚠️ Make sure this Port is updated from Aternos!
   host: 'Blasters.aternos.me', 
   port: 15754,       
   version: "1.21.1", 
@@ -11,11 +11,11 @@ const config = {
 }
 
 let bot
+let moveInterval // <--- FIX 1: Variable to track the timer
 
 function createBot() {
   const name = config.username + '_' + Math.floor(Math.random() * 999)
   
-  // Only log start/end to keep Termux clean
   console.log(`[START] Connecting as ${name}...`)
 
   bot = mineflayer.createBot({
@@ -24,7 +24,6 @@ function createBot() {
     username: name,
     version: config.version,
     auth: 'offline',
-    // LOW BATTERY MODE
     viewDistance: 'tiny',
     colorsEnabled: false,
     checkTimeoutInterval: 60000
@@ -42,13 +41,16 @@ function createBot() {
 }
 
 function startStealthMovement(bot) {
+  // <--- FIX 2: Stop the old timer if it exists so we don't have duplicates
+  if (moveInterval) clearInterval(moveInterval)
+
   const moves = new Movements(bot)
   moves.canDig = false
   moves.allow1by1towers = false
   bot.pathfinder.setMovements(moves)
 
   // Move rarely (every 60s) to save battery
-  setInterval(() => {
+  moveInterval = setInterval(() => {
     if (!bot || !bot.entity) return
 
     // Anti-Drown
@@ -62,10 +64,12 @@ function startStealthMovement(bot) {
     // Micro-movements
     if (!bot.pathfinder.isMoving()) {
       const p = bot.entity.position
-      // Move 2 blocks randomly
-      const goal = new GoalNear(p.x + (Math.random()*4-2), p.y, p.z + (Math.random()*4-2), 1)
+      // Move 2-4 blocks randomly (Increased range slightly for better detection)
+      const goal = new GoalNear(p.x + (Math.random()*6-3), p.y, p.z + (Math.random()*6-3), 1)
       try { bot.pathfinder.setGoal(goal) } catch (e) {}
     }
   }, 60000) 
 }
+
 createBot()
+    
