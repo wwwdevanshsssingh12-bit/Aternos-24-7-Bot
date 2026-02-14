@@ -4,8 +4,8 @@ const { GoalNear } = goals
 
 const config = {
   // ⚠️ Make sure this Port is updated from Aternos!
-  host: 'Blasters.aternos.me', 
-  port: 15754,       
+  host: 'Blasters.exaroton.me', 
+  port: 29801,       
   version: "1.21.1", 
   username: 'Immortal_Bot'
 }
