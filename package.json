@@ -1,9 +1,0 @@
-{
-  "name": "immortal-bot",
-  "version": "1.0.0",
-  "main": "index.js",
-  "dependencies": {
-    "mineflayer": "latest",
-    "mineflayer-pathfinder": "^2.4.5"
-  }
-}
