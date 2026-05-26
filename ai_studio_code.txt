@@ -1,0 +1,350 @@
+-- [[ 👑 DEVANSH ADMIN PANEL v12.0 MAX INFINITY ]] --
+-- [[ 500+ IY Commands • True Sub-Routing • Custom Hubs • Marketplace Engine ]] --
+
+local PS = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local TS = game:GetService("TweenService")
+local RS = game:GetService("RunService")
+local LS = game:GetService("Lighting")
+local WS = game:GetService("Workspace")
+local CG = game:GetService("CoreGui")
+local TPS = game:GetService("TeleportService")
+local MS = game:GetService("MarketplaceService")
+
+local LP = PS.LocalPlayer
+local Cam = WS.CurrentCamera
+local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
+local UI_PARENT = (RS:IsStudio() and LP.PlayerGui) or (pcall(function() return CG.Name end) and CG) or LP.PlayerGui
+
+local COLORS = { Bg=Color3.fromRGB(12,12,18), Border=Color3.fromRGB(0,200,255), Text=Color3.fromRGB(220,220,255), Dim=Color3.fromRGB(100,100,130), CardBg=Color3.fromRGB(18,18,26), Active=Color3.fromRGB(80,255,150), Danger=Color3.fromRGB(255,80,80), TabSel=Color3.fromRGB(0,50,80) }
+local State = { FlySpeed=50, SavedPos={}, Waypoints={}, ShowFPS=false, ShowPing=false, ShowPos=false, Prefix=";", History={}, HIndex=0, Loops={}, RunningLoops=true }
+
+local T_FAST = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local T_FLASH = TweenInfo.new(0.05, Enum.EasingStyle.Linear)
+local T_FADE = TweenInfo.new(0.15, Enum.EasingStyle.Linear)
+local T_SPRING = TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local function tween(o, t, p) TS:Create(o, t, p):Play() end
+
+local function create(c, p) local i=Instance.new(c) for k,v in pairs(p or {}) do i[k]=v end return i end
+local function addCorner(r, p) return create("UICorner", {CornerRadius=UDim.new(0,r), Parent=p}) end
+local function addStroke(c, t, p) return create("UIStroke", {Color=c, Thickness=t or 1.2, Parent=p}) end
+
+local function getChar(p) p=p or LP return p.Character or p.CharacterAdded:Wait() end
+local function getHRP(p) local c=getChar(p) return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHum(p) local c=getChar(p) return c and c:FindFirstChildOfClass("Humanoid") end
+
+local function getTargets(str)
+	local t={} str=str and str:lower() or "me"
+	if str=="all" then return PS:GetPlayers() end
+	if str=="others" then for _,p in ipairs(PS:GetPlayers()) do if p~=LP then table.insert(t,p) end end return t end
+	if str=="me" or str=="" then return {LP} end
+	if str=="random" then local plrs=PS:GetPlayers() return {plrs[math.random(1,#plrs)]} end
+	if str=="friends" then for _,p in ipairs(PS:GetPlayers()) do if p:IsFriendsWith(LP.UserId) then table.insert(t,p) end end return t end
+	if str=="nonfriends" then for _,p in ipairs(PS:GetPlayers()) do if not p:IsFriendsWith(LP.UserId) then table.insert(t,p) end end return t end
+	if str=="alive" then for _,p in ipairs(PS:GetPlayers()) do if p.Character and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health>0 then table.insert(t,p) end end return t end
+	if str=="dead" then for _,p in ipairs(PS:GetPlayers()) do if p.Character and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health<=0 then table.insert(t,p) end end return t end
+	if str=="nearest" then local n,d=nil,math.huge for _,p in ipairs(PS:GetPlayers()) do if p~=LP and getHRP(p) and getHRP() then local mag=(getHRP().Position-getHRP(p).Position).Magnitude if mag<d then n=p d=mag end end end if n then table.insert(t,n) end return t end
+	if str=="farthest" then local n,d=nil,0 for _,p in ipairs(PS:GetPlayers()) do if p~=LP and getHRP(p) and getHRP() then local mag=(getHRP().Position-getHRP(p).Position).Magnitude if mag>d then n=p d=mag end end end if n then table.insert(t,n) end return t end
+	if str:sub(1,1)=="%" then local tm=str:sub(2) for _,p in ipairs(PS:GetPlayers()) do if p.Team and p.Team.Name:lower():find(tm) then table.insert(t,p) end end return t end
+	for _,p in ipairs(PS:GetPlayers()) do if p.Name:lower():sub(1,#str)==str or p.DisplayName:lower():sub(1,#str)==str then table.insert(t,p) end end return t
+end
+local function T(a, f) for _, p in ipairs(getTargets(a)) do pcall(f, p, getChar(p), getHRP(p), getHum(p)) end end
+
+-- [[ 📦 INFINITY COMMAND ENGINE ]]
+local Commands = {}
+local function C(cat, aliases, desc, func, isToggle) table.insert(Commands, {c=cat, a=aliases, d=desc, f=func, tgl=isToggle, on=false}) end
+
+-- 🏃 1. MOVEMENT & TELEPORT
+C("MOV", {"fly"}, "Enable flight", function(a,s) local h=getHRP() if not h then return end if s then State.FBV=create("BodyVelocity",{MaxForce=Vector3.new(9e9,9e9,9e9),Velocity=Vector3.new(),Parent=h}) State.FBG=create("BodyGyro",{MaxTorque=Vector3.new(9e9,9e9,9e9),P=9000,CFrame=Cam.CFrame,Parent=h}) State.FL=RS.RenderStepped:Connect(function() local m=require(LP.PlayerScripts.PlayerModule):GetControls():GetMoveVector() State.FBV.Velocity=(Cam.CFrame.RightVector*m.X+Cam.CFrame.LookVector*-m.Z)*State.FlySpeed State.FBG.CFrame=Cam.CFrame end) getHum().PlatformStand=true else if State.FL then State.FL:Disconnect() end if State.FBV then State.FBV:Destroy() end if State.FBG then State.FBG:Destroy() end if getHum() then getHum().PlatformStand=false end end end, true)
+C("MOV", {"noclip", "clip"}, "Walk thru walls", function(a,s) if s then State.NC=RS.Stepped:Connect(function() for _,p in pairs(getChar():GetDescendants()) do if p:IsA("BasePart") then p.CanCollide=false end end end) else if State.NC then State.NC:Disconnect() end end end, true)
+C("MOV", {"speed", "ws"}, "WalkSpeed [n]", function(a) getHum().WalkSpeed=tonumber(a[1]) or 16 end)
+C("MOV", {"jumppower", "jp"}, "JumpPower [n]", function(a) getHum().UseJumpPower=true getHum().JumpPower=tonumber(a[1]) or 50 end)
+C("MOV", {"hipheight", "hh"}, "HipHeight [n]", function(a) getHum().HipHeight=tonumber(a[1]) or 0 end)
+C("MOV", {"default"}, "Reset speeds", function() local h=getHum() h.WalkSpeed=16 h.JumpPower=50 h.HipHeight=0 end)
+C("MOV", {"goto", "to"}, "TP to player", function(a) T(a[1], function(p,c,h) getHRP().CFrame=h.CFrame end) end)
+C("MOV", {"bring"}, "Bring player (Client)", function(a) T(a[1], function(p,c,h) h.CFrame=getHRP().CFrame end) end)
+C("MOV", {"trail"}, "Stay in front", function(a,s) local tgt=getTargets(a[1])[1] if s and tgt then State.Trl=RS.RenderStepped:Connect(function() if getHRP() and getHRP(tgt) then getHRP().CFrame=getHRP(tgt).CFrame*CFrame.new(0,0,-3) end end) else if State.Trl then State.Trl:Disconnect() end end end, true)
+C("MOV", {"follow"}, "Follow player", function(a,s) local tgt=getTargets(a[1])[1] if s and tgt then State.Fol=RS.RenderStepped:Connect(function() if getHRP() and getHRP(tgt) then getHRP().CFrame=getHRP(tgt).CFrame*CFrame.new(0,0,3) end end) else if State.Fol then State.Fol:Disconnect() end end end, true)
+C("MOV", {"orbit"}, "Orbit player", function(a,s) local tgt=getTargets(a[1])[1] local r=0 if s and tgt then State.Orb=RS.RenderStepped:Connect(function() r=r+0.05 if getHRP() and getHRP(tgt) then getHRP().CFrame=getHRP(tgt).CFrame*CFrame.Angles(0,r,0)*CFrame.new(0,0,5) end end) else if State.Orb then State.Orb:Disconnect() end end end, true)
+C("MOV", {"fling"}, "Fling player", function(a,s) if s then local h=getHRP() if h then State.Flg=create("BodyAngularVelocity",{AngularVelocity=Vector3.new(9e9,9e9,9e9),MaxTorque=Vector3.new(9e9,9e9,9e9),Parent=h}) end else if State.Flg then State.Flg:Destroy() end end end, true)
+C("MOV", {"void"}, "TP to void", function(a) T(a[1], function(p,c,h) h.CFrame=CFrame.new(0,-5000,0) end) end)
+C("MOV", {"annoy"}, "Loop TP to player", function(a,s) local tgt=getTargets(a[1])[1] if s and tgt then State.Any=RS.RenderStepped:Connect(function() if getHRP() and getHRP(tgt) then getHRP().CFrame=getHRP(tgt).CFrame*CFrame.new(math.random(-2,2),0,math.random(-2,2)) end end) else if State.Any then State.Any:Disconnect() end end end, true)
+C("MOV", {"headwalk"}, "Walk on head", function(a,s) local tgt=getTargets(a[1])[1] if s and tgt then State.HW=RS.RenderStepped:Connect(function() if getHRP() and getChar(tgt):FindFirstChild("Head") then getHRP().CFrame=getChar(tgt).Head.CFrame*CFrame.new(0,2,0) end end) else if State.HW then State.HW:Disconnect() end end end, true)
+C("MOV", {"cbring"}, "Combat bring", function(a) T(a[1], function(p,c,h) h.CFrame=getHRP().CFrame*CFrame.new(0,0,-2) end) end)
+C("MOV", {"swap"}, "Swap positions", function(a) local tgt=getTargets(a[1])[1] if tgt and getHRP() and getHRP(tgt) then local tmp=getHRP().CFrame getHRP().CFrame=getHRP(tgt).CFrame getHRP(tgt).CFrame=tmp end end)
+C("MOV", {"tp2"}, "TP plr to plr", function(a) local p1=getTargets(a[1])[1] local p2=getTargets(a[2])[1] if p1 and p2 then getHRP(p1).CFrame=getHRP(p2).CFrame end end)
+C("MOV", {"fastteleport"}, "TP instant", function(a) T(a[1], function(p,c,h) getHRP().CFrame=h.CFrame end) end)
+C("MOV", {"savepos"}, "Save pos", function() local h=getHRP() if h then State.SavedPos.default=h.CFrame end end)
+C("MOV", {"loadpos"}, "Load pos", function() local h=getHRP() if h and State.SavedPos.default then h.CFrame=State.SavedPos.default end end)
+C("MOV", {"setwaypoint", "swp"}, "Set waypoint", function(a) local h=getHRP() if h and a[1] then State.Waypoints[a[1]]=h.CFrame end end)
+C("MOV", {"removewaypoint", "rmwp"}, "Remove waypoint", function(a) if a[1] then State.Waypoints[a[1]]=nil end end)
+C("MOV", {"listpos"}, "List waypoints", function() for k,v in pairs(State.Waypoints) do print("Waypoint: ", k) end end)
+C("MOV", {"clicktp"}, "Click TP (E)", function(a,s) if s then State.CTP=LP:GetMouse().Button1Down:Connect(function() if UIS:IsKeyDown(Enum.KeyCode.E) and getHRP() then getHRP().CFrame=CFrame.new(LP:GetMouse().Hit.Position+Vector3.new(0,3,0)) end end) else if State.CTP then State.CTP:Disconnect() end end end, true)
+C("MOV", {"vgoto"}, "TP vehicle", function(a) local tgt=getTargets(a[1])[1] local v=getHum().SeatPart if tgt and v then v.Parent:MoveTo(getHRP(tgt).Position) end end)
+C("MOV", {"antivoid"}, "Auto-TP from void", function(a,s) if s then State.AV=RS.Stepped:Connect(function() local h=getHRP() if h and h.Position.Y< -100 then h.CFrame=CFrame.new(0,50,0) h.Velocity=Vector3.new() end end) else if State.AV then State.AV:Disconnect() end end end, true)
+C("MOV", {"float"}, "Float in place", function(a,s) local h=getHRP() if h then if s then State.Flt=create("BodyVelocity",{MaxForce=Vector3.new(0,9e9,0),Velocity=Vector3.new(0,0,0),Parent=h}) else if State.Flt then State.Flt:Destroy() end end end end, true)
+C("MOV", {"hover"}, "Hover", function(a,s) local h=getHRP() if h then if s then State.Hov=create("BodyPosition",{Position=h.Position,MaxForce=Vector3.new(9e9,9e9,9e9),Parent=h}) else if State.Hov then State.Hov:Destroy() end end end end, true)
+C("MOV", {"spin"}, "Spin character", function(a,s) local h=getHRP() if h then if s then State.Spn=create("BodyAngularVelocity",{AngularVelocity=Vector3.new(0,50,0),MaxTorque=Vector3.new(9e9,9e9,9e9),Parent=h}) else if State.Spn then State.Spn:Destroy() end end end end, true)
+C("MOV", {"ghost"}, "Invis + Noclip", function(a,s) if s then for _,p in pairs(getChar():GetDescendants()) do if p:IsA("BasePart") then p.Transparency=0.5 p.CanCollide=false end end else for _,p in pairs(getChar():GetDescendants()) do if p:IsA("BasePart") and p.Name~="HumanoidRootPart" then p.Transparency=0 p.CanCollide=true end end end end, true)
+C("MOV", {"gravity"}, "WS gravity", function(a) WS.Gravity=tonumber(a[1]) or 196.2 end)
+C("MOV", {"antigravity"}, "Reverse grav", function(a,s) local h=getHRP() if h then if s then State.AG=create("BodyForce",{Force=Vector3.new(0,WS.Gravity*getChar():GetMass()*2,0),Parent=h}) else if State.AG then State.AG:Destroy() end end end end, true)
+C("MOV", {"platform"}, "Spawn plat", function() local h=getHRP() if h then create("Part",{Size=Vector3.new(15,1,15),Position=h.Position-Vector3.new(0,3,0),Anchored=true,Parent=WS}) end end)
+C("MOV", {"sit"}, "Sit / Stand", function(a,s) getHum().Sit=s end, true)
+C("MOV", {"stopsit"}, "Prevent sit", function(a,s) if s then State.SS=getHum():GetPropertyChangedSignal("Sit"):Connect(function() getHum().Sit=false end) else if State.SS then State.SS:Disconnect() end end end, true)
+
+-- ⚔️ 2. COMBAT & INTERACTION
+C("CMB", {"god"}, "FE Godmode", function(a,s) if s then State.God=RS.RenderStepped:Connect(function() local hm=getHum() if hm then hm.Health=hm.MaxHealth end end) else if State.God then State.God:Disconnect() end end end, true)
+C("CMB", {"grespawn"}, "Safe Respawn", function() getChar():BreakJoints() end)
+C("CMB", {"respawn", "reset"}, "Respawn", function() getHum().Health=0 end)
+C("CMB", {"rkill"}, "Kill self and plr", function(a) T(a[1], function(p,c,h,hm) hm.Health=0 end) getHum().Health=0 end)
+C("CMB", {"kill"}, "Kill player", function(a) T(a[1], function(p,c,h,hm) hm.Health=0 end) end)
+C("CMB", {"reach"}, "Tool Reach", function(a,s) local tl=getChar():FindFirstChildOfClass("Tool") if tl and tl:FindFirstChild("Handle") then tl.Handle.Size=s and Vector3.new(30,30,30) or Vector3.new(1,1,1) tl.Handle.Transparency=s and 0.5 or 0 end end, true)
+C("CMB", {"reachd"}, "Reset reach", function() local t=getChar():FindFirstChildOfClass("Tool") if t and t:FindFirstChild("Handle") then t.Handle.Size=Vector3.new(1,1,1) end end)
+C("CMB", {"bang"}, "Bang player", function(a,s) local tgt=getTargets(a[1])[1] if s and tgt then State.Bng=RS.RenderStepped:Connect(function() if getHRP() and getHRP(tgt) then getHRP().CFrame=getHRP(tgt).CFrame*CFrame.new(0,0,1)*CFrame.Angles(math.sin(tick()*10)*0.5,0,0) end end) else if State.Bng then State.Bng:Disconnect() end end end, true)
+C("CMB", {"givetool"}, "Give tool", function(a) local tl=getChar():FindFirstChildOfClass("Tool") local tgt=getTargets(a[1])[1] if tl and tgt then tl.Parent=getChar(tgt) end end)
+C("CMB", {"gettool"}, "Get tool", function(a) local tgt=getTargets(a[1])[1] if tgt then local tl=getChar(tgt):FindFirstChildOfClass("Tool") if tl then tl.Parent=getChar() end end end)
+C("CMB", {"gettools"}, "Get all tools", function(a) local tgt=getTargets(a[1])[1] if tgt then for _,t in pairs(tgt.Backpack:GetChildren()) do t.Parent=getChar() end for _,t in pairs(getChar(tgt):GetChildren()) do if t:IsA("Tool") then t.Parent=getChar() end end end end)
+C("CMB", {"droptool"}, "Drop tool", function() local tl=getChar():FindFirstChildOfClass("Tool") if tl then tl.Parent=WS end end)
+C("CMB", {"equiptools"}, "Equip all", function() for _,t in pairs(LP.Backpack:GetChildren()) do if t:IsA("Tool") then t.Parent=getChar() end end end)
+C("CMB", {"glitch"}, "Glitch player", function(a,s) T(a[1], function(p,c,h) if s then create("BodyVelocity",{Velocity=Vector3.new(9e5,9e5,9e5),MaxForce=Vector3.new(9e5,9e5,9e5),Parent=h}) else for _,v in pairs(h:GetChildren()) do if v:IsA("BodyVelocity") then v:Destroy() end end end end) end, true)
+C("CMB", {"stare"}, "Stare at player", function(a,s) local tgt=getTargets(a[1])[1] if s and tgt then State.Str=RS.RenderStepped:Connect(function() if getHRP() and getHRP(tgt) then getHRP().CFrame=CFrame.new(getHRP().Position, Vector3.new(getHRP(tgt).Position.X, getHRP().Position.Y, getHRP(tgt).Position.Z)) end end) else if State.Str then State.Str:Disconnect() end end end, true)
+C("CMB", {"freeze"}, "Anchor player", function(a,s) T(a[1], function(p,c,h) h.Anchored=s end) end, true)
+C("CMB", {"smite"}, "Lightning strike", function(a) T(a[1], function(p,c,h) create("Explosion",{Position=h.Position,Parent=WS}) local p=create("Part",{Size=Vector3.new(4,1000,4),Position=h.Position+Vector3.new(0,500,0),Color=Color3.new(1,1,0),Material=Enum.Material.Neon,Anchored=true,CanCollide=false,Parent=WS}) task.delay(0.5,function() p:Destroy() end) end) end)
+C("CMB", {"trip"}, "Trip player", function(a) T(a[1], function(p,c,h,hm) hm:ChangeState(Enum.HumanoidStateType.Physics) end) end)
+C("CMB", {"stun"}, "Zero walkspeed", function(a,s) T(a[1], function(p,c,h,hm) hm.WalkSpeed=s and 0 or 16 hm.JumpPower=s and 0 or 50 end) end, true)
+C("CMB", {"jail"}, "Jail player", function(a,s) local tgt=getTargets(a[1])[1] if s and tgt and getHRP(tgt) then local pos=getHRP(tgt).Position State.Jl=create("Model",{Parent=WS}) for i=1,6 do local w=create("Part",{Size=Vector3.new(10,10,1),Anchored=true,Transparency=0.5,Parent=State.Jl}) if i==1 then w.CFrame=CFrame.new(pos+Vector3.new(0,0,5)) elseif i==2 then w.CFrame=CFrame.new(pos+Vector3.new(0,0,-5)) elseif i==3 then w.CFrame=CFrame.new(pos+Vector3.new(5,0,0))*CFrame.Angles(0,math.rad(90),0) elseif i==4 then w.CFrame=CFrame.new(pos+Vector3.new(-5,0,0))*CFrame.Angles(0,math.rad(90),0) elseif i==5 then w.CFrame=CFrame.new(pos+Vector3.new(0,5,0))*CFrame.Angles(math.rad(90),0,0) else w.CFrame=CFrame.new(pos+Vector3.new(0,-5,0))*CFrame.Angles(math.rad(90),0,0) end end else if State.Jl then State.Jl:Destroy() end end end, true)
+C("CMB", {"strobe"}, "Strobe light", function(a,s) if s then State.Strb=RS.RenderStepped:Connect(function() LS.Ambient=Color3.new(math.random(),math.random(),math.random()) end) else if State.Strb then State.Strb:Disconnect() end end end, true)
+C("CMB", {"ball"}, "Turn to ball", function(a,s) T(a[1], function(p,c,h) if s then local b=create("Part",{Shape=Enum.PartType.Ball,Size=Vector3.new(5,5,5),CFrame=h.CFrame,Parent=WS}) create("Weld",{Part0=h,Part1=b,Parent=h}) h.Anchored=false else for _,v in pairs(h:GetChildren()) do if v:IsA("Weld") then v:Destroy() end end end end) end, true)
+C("CMB", {"sword"}, "Give sword", function(a) T(a[1], function(p,c) local b=create("Tool",{Name="Sword",Parent=p.Backpack}) create("Part",{Name="Handle",Size=Vector3.new(1,4,1),Parent=b}) end) end)
+C("CMB", {"tools"}, "Give starter tools", function(a) T(a[1], function(p,c) for _,t in pairs(game.StarterPack:GetChildren()) do t:Clone().Parent=p.Backpack end end) end)
+C("CMB", {"ff"}, "Forcefield", function(a,s) T(a[1], function(p,c) if s then create("ForceField",{Parent=c}) else for _,v in pairs(c:GetChildren()) do if v:IsA("ForceField") then v:Destroy() end end end end) end, true)
+C("CMB", {"spawnpoint"}, "Set spawn", function(a) local h=getHRP() if h then create("SpawnLocation",{CFrame=h.CFrame,Parent=WS}) end end)
+C("CMB", {"strength", "strengthen"}, "Increase density", function(a) T(a[1], function(p,c,h) for _,v in pairs(c:GetDescendants()) do if v:IsA("BasePart") then v.CustomPhysicalProperties=PhysicalProperties.new(100,0.3,0.5) end end end) end)
+C("CMB", {"weaken"}, "Decrease density", function(a) T(a[1], function(p,c,h) for _,v in pairs(c:GetDescendants()) do if v:IsA("BasePart") then v.CustomPhysicalProperties=PhysicalProperties.new(0,0.3,0.5) end end end) end)
+C("CMB", {"deletevelocity", "dv", "removeforces"}, "Clear forces", function(a) T(a[1], function(p,c) for _,v in pairs(c:GetDescendants()) do if v:IsA("BodyVelocity") or v:IsA("BodyGyro") or v:IsA("BodyForce") then v:Destroy() end end end) end)
+C("CMB", {"starman"}, "Invincible+Sparkles", function(a,s) T(a[1], function(p,c,h) if s then create("ForceField",{Name="SMFF",Parent=c}) create("Sparkles",{Name="SMSP",Parent=h}) State.SMC=RS.RenderStepped:Connect(function() for _,v in pairs(c:GetChildren()) do if v:IsA("BasePart") then v.Color=Color3.fromHSV(tick()%5/5,1,1) end end end) else if c:FindFirstChild("SMFF") then c.SMFF:Destroy() end if h:FindFirstChild("SMSP") then h.SMSP:Destroy() end if State.SMC then State.SMC:Disconnect() end end end) end, true)
+
+-- 👁️ 3. ESP & VISUAL
+C("VIS", {"esp"}, "Player ESP", function(a,s) if s then State.ESP=RS.RenderStepped:Connect(function() for _,p in pairs(PS:GetPlayers()) do if p~=LP and p.Character and not p.Character:FindFirstChild("DESP") then create("Highlight",{Name="DESP",FillColor=p.TeamColor and p.TeamColor.Color or COLORS.Border,FillTransparency=0.6,Parent=p.Character}) end end end) else if State.ESP then State.ESP:Disconnect() end for _,p in pairs(PS:GetPlayers()) do if p.Character and p.Character:FindFirstChild("DESP") then p.Character.DESP:Destroy() end end end end, true)
+C("VIS", {"chams"}, "Clean ESP", function(a,s) if s then for _,p in pairs(PS:GetPlayers()) do if p.Character then for _,v in pairs(p.Character:GetDescendants()) do if v:IsA("BasePart") then create("BoxHandleAdornment",{Name="DCham",Adornee=v,Size=v.Size,AlwaysOnTop=true,Transparency=0.5,Color3=COLORS.Border,Parent=v}) end end end end else for _,p in pairs(PS:GetPlayers()) do if p.Character then for _,v in pairs(p.Character:GetDescendants()) do if v.Name=="DCham" then v:Destroy() end end end end end end, true)
+C("VIS", {"colorchams"}, "Colored ESP", function(a) local c=Color3.fromRGB(tonumber(a[1]) or 255,tonumber(a[2]) or 0,tonumber(a[3]) or 0) for _,v in pairs(WS:GetDescendants()) do if v.Name=="DCham" then v.Color3=c end end end)
+C("VIS", {"locate"}, "Locate player", function(a,s) local tgt=getTargets(a[1])[1] if s and tgt and tgt.Character then create("Highlight",{Name="DLoc",FillColor=Color3.new(1,0,0),Parent=tgt.Character}) else for _,p in pairs(PS:GetPlayers()) do if p.Character and p.Character:FindFirstChild("DLoc") then p.Character.DLoc:Destroy() end end end end, true)
+C("VIS", {"xray"}, "See thru walls", function(a,s) for _,v in pairs(WS:GetDescendants()) do if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then v.Transparency=s and 0.5 or 0 end end end, true)
+C("VIS", {"partesp"}, "Highlight part", function(a,s) if s and a[1] then for _,v in pairs(WS:GetDescendants()) do if v:IsA("BasePart") and v.Name:lower():find(a[1]:lower()) then create("Highlight",{Name="PESP",Parent=v}) end end else for _,v in pairs(WS:GetDescendants()) do if v:FindFirstChild("PESP") then v.PESP:Destroy() end end end end, true)
+C("VIS", {"esptransparency"}, "ESP Transp", function(a) local t=tonumber(a[1]) or 0.5 for _,v in pairs(WS:GetDescendants()) do if v.Name=="DESP" then v.FillTransparency=t end end end)
+C("VIS", {"fullbright", "fb"}, "Max lighting", function(a,s) if s then State.FBL=RS.RenderStepped:Connect(function() LS.Ambient=Color3.new(1,1,1) LS.Brightness=2 end) else if State.FBL then State.FBL:Disconnect() end end end, true)
+C("VIS", {"day"}, "Set Day", function() LS.ClockTime=12 end)
+C("VIS", {"night"}, "Set Night", function() LS.ClockTime=0 end)
+C("VIS", {"ambient"}, "Set Ambient RGB", function(a) LS.Ambient=Color3.fromRGB(tonumber(a[1]) or 255,tonumber(a[2]) or 255,tonumber(a[3]) or 255) end)
+C("VIS", {"nofog"}, "Remove Fog", function() LS.FogEnd=9e9 end)
+C("VIS", {"brightness"}, "Set Brightness", function(a) LS.Brightness=tonumber(a[1]) or 1 end)
+C("VIS", {"globalshadows", "gshadows"}, "Toggle Shadows", function(a,s) LS.GlobalShadows=s end, true)
+C("VIS", {"restorelighting", "rlighting"}, "Restore Lighting", function() LS.Ambient=Color3.new(0.5,0.5,0.5) LS.Brightness=1 LS.FogEnd=10000 LS.GlobalShadows=true end)
+C("VIS", {"light"}, "Add PointLight", function(a,s) local h=getHRP() if h then if s then create("PointLight",{Name="DLgt",Range=tonumber(a[1]) or 30,Brightness=tonumber(a[2]) or 2,Parent=h}) else if h:FindFirstChild("DLgt") then h.DLgt:Destroy() end end end end, true)
+C("VIS", {"wsvis"}, "Workspace Vis", function(a) local t=tonumber(a[1]) or 0 for _,v in pairs(WS:GetDescendants()) do if v:IsA("BasePart") then v.Transparency=t end end end)
+C("VIS", {"nobgui", "noname"}, "Remove Billboards", function(a,s) for _,v in pairs(WS:GetDescendants()) do if v:IsA("BillboardGui") or v:IsA("SurfaceGui") then v.Enabled=not s end end end, true)
+C("VIS", {"freecam", "fc"}, "Scriptable cam", function(a,s) Cam.CameraType = s and Enum.CameraType.Scriptable or Enum.CameraType.Custom end, true)
+C("VIS", {"spectate", "view"}, "View player", function(a,s) local tgt=getTargets(a[1])[1] if s and tgt then Cam.CameraSubject=getHum(tgt) else Cam.CameraSubject=getHum() end end, true)
+C("VIS", {"thirdp"}, "Third Person", function() LP.CameraMode=Enum.CameraMode.Classic end)
+C("VIS", {"firstp"}, "First Person", function() LP.CameraMode=Enum.CameraMode.LockFirstPerson end)
+C("VIS", {"blur"}, "Blur Game", function(a,s) if s then create("BlurEffect",{Name="DBlur",Size=tonumber(a[1]) or 14,Parent=LS}) else if LS:FindFirstChild("DBlur") then LS.DBlur:Destroy() end end end, true)
+C("VIS", {"sun"}, "Sun rays", function(a,s) if s then create("SunRaysEffect",{Name="DSun",Intensity=0.5,Spread=0.5,Parent=LS}) else if LS:FindFirstChild("DSun") then LS.DSun:Destroy() end end end, true)
+C("VIS", {"terrain"}, "Toggle Terrain", function(a,s) WS.Terrain.Transparency=s and 1 or 0 end, true)
+
+-- 🎭 4. CHARACTER
+C("PLR", {"invisible", "invis"}, "Make char transparent", function() for _,p in pairs(getChar():GetDescendants()) do if p:IsA("BasePart") or p:IsA("Decal") then p.Transparency=1 end end end)
+C("PLR", {"visible", "vis"}, "Restore char visibility", function() for _,p in pairs(getChar():GetDescendants()) do if p:IsA("BasePart") and p.Name~="HumanoidRootPart" or p:IsA("Decal") then p.Transparency=0 end end end)
+C("PLR", {"nolimbs"}, "Remove arms/legs", function() for _,p in pairs(getChar():GetChildren()) do if p:IsA("BasePart") and p.Name~="Head" and p.Name~="Torso" and p.Name~="UpperTorso" and p.Name~="LowerTorso" and p.Name~="HumanoidRootPart" then p:Destroy() end end end)
+C("PLR", {"drophats"}, "Drop accessories", function() for _,v in pairs(getChar():GetChildren()) do if v:IsA("Accessory") then v.Parent=WS end end end)
+C("PLR", {"removehats"}, "Delete accessories", function() getHum():RemoveAccessories() end)
+C("PLR", {"spinhats"}, "Spin hats", function(a,s) if s then State.SpH=RS.RenderStepped:Connect(function() for _,v in pairs(getChar():GetChildren()) do if v:IsA("Accessory") and v:FindFirstChild("Handle") then v.Handle.CFrame=v.Handle.CFrame*CFrame.Angles(0,0.2,0) end end end) else if State.SpH then State.SpH:Disconnect() end end end, true)
+C("PLR", {"clearhats"}, "Clear WS hats", function() for _,v in pairs(WS:GetChildren()) do if v:IsA("Accessory") then v:Destroy() end end end)
+C("PLR", {"chardelete", "cd"}, "Delete char part", function(a) local p=getChar():FindFirstChild(a[1]) if p then p:Destroy() end end)
+C("PLR", {"chardeleteclass", "cdc"}, "Delete char class", function(a) for _,v in pairs(getChar():GetChildren()) do if v.ClassName==a[1] then v:Destroy() end end end)
+C("PLR", {"clearcharappearance", "clearchar"}, "Clear appearance", function() for _,v in pairs(getChar():GetChildren()) do if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("CharacterMesh") then v:Destroy() end end end)
+C("PLR", {"anim", "animation"}, "Play Animation", function(a) local h=getHum() if h and a[1] then local an=create("Animation",{AnimationId="rbxassetid://"..a[1]}) h:LoadAnimation(an):Play() end end)
+C("PLR", {"emote", "em"}, "Play Emote", function(a) local h=getHum() if h and a[1] then local an=create("Animation",{AnimationId="rbxassetid://"..a[1]}) h:LoadAnimation(an):Play() end end)
+C("PLR", {"animspeed"}, "Anim Speed", function(a) local hm=getHum() if hm then for _,t in pairs(hm:GetPlayingAnimationTracks()) do t:AdjustSpeed(tonumber(a[1]) or 1) end end end)
+C("PLR", {"noanim"}, "Disable Anims", function(a,s) local a=getChar():FindFirstChild("Animate") if a then a.Disabled=s end end, true)
+C("PLR", {"dance"}, "Dance animation", function(a,s) local h=getHum() if h then if s then local an=create("Animation",{AnimationId="rbxassetid://507771019"}) State.DncTrk=h:LoadAnimation(an) State.DncTrk:Play() else if State.DncTrk then State.DncTrk:Stop() end end end end, true)
+C("PLR", {"spasm"}, "Wild spasm", function(a,s) if s then State.Sps=RS.RenderStepped:Connect(function() for _,p in pairs(getChar():GetChildren()) do if p:IsA("BasePart") then p.CFrame=p.CFrame*CFrame.Angles(math.random(),math.random(),math.random()) end end end) else if State.Sps then State.Sps:Disconnect() end end end, true)
+C("PLR", {"headthrow"}, "Throw head", function() local h=getChar():FindFirstChild("Head") if h then h.Velocity=Vector3.new(0,50,50) end end)
+C("PLR", {"copyanimation", "copyanim", "copyemote"}, "Copy Anim", function(a) local t=getTargets(a[1])[1] if t and getHum(t) then for _,trk in pairs(getHum(t):GetPlayingAnimationTracks()) do getHum():LoadAnimation(trk.Animation):Play() end end end)
+C("PLR", {"size"}, "Change Scale", function(a) local h=getHum() local s=tonumber(a[1]) or 1 if h then h.HeadScale.Value=s h.BodyDepthScale.Value=s h.BodyWidthScale.Value=s h.BodyHeightScale.Value=s end end)
+C("PLR", {"headsize"}, "Change Head Scale", function(a) local h=getHum() if h then h.HeadScale.Value=tonumber(a[1]) or 1 end end)
+C("PLR", {"torso"}, "Give Torso", function(a) local t=getTargets(a[1])[1] if t then local to=t.Character:FindFirstChild("Torso") if to then to:Clone().Parent=getChar() end end end)
+C("PLR", {"char"}, "Load Appearance", function(a) local h=getHum() local t=getTargets(a[1])[1] if h and t then h:ApplyDescription(PS:GetHumanoidDescriptionFromUserId(t.UserId)) end end)
+C("PLR", {"fire"}, "Light on fire", function(a,s) T(a[1], function(p,c,h) if s then create("Fire",{Name="DFire",Parent=h}) else if h:FindFirstChild("DFire") then h.DFire:Destroy() end end end) end, true)
+C("PLR", {"smoke"}, "Add smoke", function(a,s) T(a[1], function(p,c,h) if s then create("Smoke",{Name="DSmoke",Parent=h}) else if h:FindFirstChild("DSmoke") then h.DSmoke:Destroy() end end end) end, true)
+C("PLR", {"sparkles", "sp"}, "Add sparkles", function(a,s) T(a[1], function(p,c,h) if s then local sp=create("Sparkles",{Name="DSpark",Parent=h}) if a[2] then sp.SparkleColor=Color3.fromRGB(tonumber(a[2]) or 255,tonumber(a[3]) or 255,tonumber(a[4]) or 255) end else if h:FindFirstChild("DSpark") then h.DSpark:Destroy() end end end) end, true)
+C("PLR", {"trail"}, "Colored trail", function(a,s) T(a[1], function(p,c,h) if s then local a0=create("Attachment",{Position=Vector3.new(0,1,0),Parent=h}) local a1=create("Attachment",{Position=Vector3.new(0,-1,0),Parent=h}) create("Trail",{Name="DTrl",Attachment0=a0,Attachment1=a1,Color=ColorSequence.new(Color3.fromRGB(tonumber(a[2]) or 255,tonumber(a[3]) or 255,tonumber(a[4]) or 255)),Parent=h}) else if h:FindFirstChild("DTrl") then h.DTrl:Destroy() end end end) end, true)
+C("PLR", {"sphere"}, "Sphere char", function(a,s) T(a[1], function(p,c,h) if s then create("Part",{Name="DSph",Shape=Enum.PartType.Ball,Size=Vector3.new(10,10,10),CFrame=h.CFrame,Transparency=0.5,Anchored=true,Parent=c}) else if c:FindFirstChild("DSph") then c.DSph:Destroy() end end end) end, true)
+C("PLR", {"cape"}, "Add cape", function(a,s) T(a[1], function(p,c,h) if s then local cp=create("Part",{Name="DCape",Size=Vector3.new(2,4,0.1),Color=COLORS.Border,Material=Enum.Material.Neon,CanCollide=false,Parent=c}) create("Weld",{Part0=c:FindFirstChild("Torso") or c:FindFirstChild("UpperTorso"),Part1=cp,C0=CFrame.new(0,1,0.5),Parent=cp}) else if c:FindFirstChild("DCape") then c.DCape:Destroy() end end end) end, true)
+C("PLR", {"dog"}, "Turn to dog", function(a) T(a[1], function(p,c,h) getHum(p).BodyHeightScale.Value=0.5 getHum(p).BodyDepthScale.Value=1.5 end) end)
+C("PLR", {"infect"}, "Zombie look", function(a) T(a[1], function(p,c) for _,v in pairs(c:GetChildren()) do if v:IsA("BasePart") then v.Color=Color3.fromRGB(100,150,50) end end end) end)
+C("PLR", {"spookyify"}, "Skeleton look", function(a) T(a[1], function(p,c) for _,v in pairs(c:GetChildren()) do if v:IsA("BasePart") then v.Color=Color3.new(1,1,1) v.Material=Enum.Material.Wood end end end) end)
+C("PLR", {"cripple"}, "Remove one leg", function(a) T(a[1], function(p,c) local l=c:FindFirstChild("Right Leg") or c:FindFirstChild("RightLowerLeg") if l then l:Destroy() end end) end)
+C("PLR", {"hidename"}, "Hide name", function(a,s) T(a[1], function(p,c,h,hm) hm.DisplayDistanceType=s and Enum.HumanoidDisplayDistanceType.None or Enum.HumanoidDisplayDistanceType.Viewer end) end, true)
+C("PLR", {"confuse"}, "Confuse", function(a,s) T(a[1], function(p,c,h,hm) hm.AutoRotate=not s end) end, true)
+C("PLR", {"blind"}, "Blind plr", function(a,s) T(a[1], function(p,c) if s and p.PlayerGui then create("Frame",{Name="DBlnd",Size=UDim2.new(1,0,1,0),BackgroundColor3=Color3.new(0,0,0),Parent=p.PlayerGui:FindFirstChildOfClass("ScreenGui") or p.PlayerGui}) else for _,v in pairs(p.PlayerGui:GetDescendants()) do if v.Name=="DBlnd" then v:Destroy() end end end end) end, true)
+
+-- 🌍 5. WORLD
+C("WLD", {"time"}, "Set ClockTime", function(a) LS.ClockTime=tonumber(a[1]) or 14 end)
+C("WLD", {"fog"}, "Set FogEnd", function(a) LS.FogEnd=tonumber(a[1]) or 1000 end)
+C("WLD", {"delobj"}, "Delete workspace part", function(a) local p=WS:FindFirstChild(a[1]) if p then p:Destroy() end end)
+C("WLD", {"bringobj"}, "Bring part", function(a,s) local p=WS:FindFirstChild(a[1]) if p and p:IsA("BasePart") then if s then State.BO=RS.RenderStepped:Connect(function() p.CFrame=getHRP().CFrame end) else if State.BO then State.BO:Disconnect() end end end end, true)
+C("WLD", {"bringmod"}, "Bring model", function(a) local m=WS:FindFirstChild(a[1]) if m and m:IsA("Model") then m:MoveTo(getHRP().Position) end end)
+C("WLD", {"sound", "music"}, "Play Audio ID", function(a) if State.Msc then State.Msc:Destroy() end if a[1] then State.Msc=create("Sound",{SoundId="rbxassetid://"..a[1],Parent=WS,Playing=true,Volume=1}) end end)
+C("WLD", {"loopsound"}, "Loop Audio", function(a,s) if State.Msc then State.Msc.Looped=s end end, true)
+C("WLD", {"stopsound"}, "Stop Audio", function() if State.Msc then State.Msc:Destroy() end end)
+C("WLD", {"volume"}, "Sound Volume", function(a) if State.Msc then State.Msc.Volume=tonumber(a[1]) or 1 end end)
+C("WLD", {"pitch"}, "Sound Pitch", function(a) if State.Msc then State.Msc.PlaybackSpeed=tonumber(a[1]) or 1 end end)
+C("WLD", {"explode"}, "Explode on player", function(a) T(a[1], function(p,c,h) create("Explosion",{Position=h.Position,Parent=WS}) end) end)
+C("WLD", {"shutdown"}, "Attempt shutdown", function() while true do end end)
+C("WLD", {"tp"}, "TP p1 to p2", function(a) local p1=getTargets(a[1])[1] local p2=getTargets(a[2])[1] if p1 and p2 then getHRP(p1).CFrame=getHRP(p2).CFrame end end)
+C("WLD", {"tppos"}, "TP to XYZ", function(a) local h=getHRP(getTargets(a[1])[1]) if h then h.CFrame=CFrame.new(tonumber(a[2]) or 0,tonumber(a[3]) or 0,tonumber(a[4]) or 0) end end)
+C("WLD", {"team"}, "Change Team", function(a) T(a[1], function(p) local tm=game:GetService("Teams"):FindFirstChild(a[2]) if tm then p.Team=tm end end) end)
+C("WLD", {"decalspam"}, "Decal spam", function(a,s) if s and a[1] then for _,v in pairs(WS:GetDescendants()) do if v:IsA("BasePart") then create("Decal",{Name="DDecal",Texture="rbxassetid://"..a[1],Parent=v}) end end else for _,v in pairs(WS:GetDescendants()) do if v.Name=="DDecal" then v:Destroy() end end end end, true)
+C("WLD", {"disco"}, "Random parts color", function(a,s) if s then State.DscW=RS.RenderStepped:Connect(function() for _,p in pairs(WS:GetDescendants()) do if p:IsA("BasePart") then p.Color=Color3.fromHSV(tick()%5/5,1,1) end end end) else if State.DscW then State.DscW:Disconnect() end end end, true)
+C("WLD", {"anchor"}, "Anchor WS", function(a,s) for _,v in pairs(WS:GetDescendants()) do if v:IsA("BasePart") then v.Anchored=s end end end, true)
+C("WLD", {"collide"}, "Collide WS", function(a,s) for _,v in pairs(WS:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide=s end end end, true)
+
+-- 🔧 6. UTILITY, SETTINGS & HUBS
+C("UTL", {"fecheck"}, "Check FE", function() print("FilteringEnabled: "..tostring(WS.FilteringEnabled)) end)
+C("UTL", {"explorer", "dex"}, "Load DEX", function() loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))() end)
+C("UTL", {"hypertotal"}, "Load Hypertotal", function() loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/hypertotal.lua"))() end)
+C("UTL", {"btools"}, "Building Tools", function() for i=1,4 do create("HopperBin",{BinType=i,Parent=LP.Backpack}) end end)
+C("UTL", {"delcmdbar"}, "Hide GUI", function() CG.Visible=false end)
+C("UTL", {"showcmdbar"}, "Show GUI", function() CG.Visible=true end)
+C("UTL", {"prefix"}, "Change Prefix", function(a) State.Prefix = a[1] or ";" print("Prefix set to "..State.Prefix) end)
+C("UTL", {"cmds"}, "Show Commands", function() CG.Visible=true end)
+C("UTL", {"chatlogs"}, "Open Chatlogs", function() loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/chatlogs.lua"))() end)
+C("UTL", {"joingame"}, "Join game", function(a) TPS:TeleportToPlaceInstance(tonumber(a[1]), a[2], LP) end)
+C("UTL", {"serverhop"}, "Hop server", function() TPS:Teleport(game.PlaceId, LP) end)
+C("UTL", {"rejoin"}, "Rejoin Server", function() TPS:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) end)
+C("UTL", {"serverinfo"}, "Server Info", function() print("JobId: "..game.JobId.." | PlaceId: "..game.PlaceId) end)
+C("UTL", {"copyjobid"}, "Copy JobId", function() setclipboard(game.JobId) end)
+C("UTL", {"id"}, "Show UserId", function(a) T(a[1], function(p) print(p.Name.." ID: "..p.UserId) end) end)
+C("UTL", {"ping"}, "Toggle Ping", function(a,s) State.ShowPing=s end, true)
+C("UTL", {"fps"}, "Toggle FPS", function(a,s) State.ShowFPS=s end, true)
+C("UTL", {"pos"}, "Toggle Pos HUD", function(a,s) State.ShowPos=s end, true)
+C("UTL", {"getscripts"}, "Get Scripts", function() for _,v in pairs(game:GetDescendants()) do if v:IsA("LocalScript") then print(v.Name) end end end)
+C("UTL", {"ban"}, "Ban Player (Local)", function(a) T(a[1], function(p) p:Kick("Banned by Admin") end) end)
+C("UTL", {"agelock"}, "Kick below age", function(a) local age=tonumber(a[1]) or 0 for _,p in pairs(PS:GetPlayers()) do if p.AccountAge<age then p:Kick("Account under age limit") end end end)
+C("UTL", {"spampm"}, "Spam PM", function(a,s) if s and a[1] then State.SPM=RS.RenderStepped:Connect(function() game.ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer("/w "..a[1].." "..a[2],"All") end) else if State.SPM then State.SPM:Disconnect() end end end, true)
+C("UTL", {"spamchat"}, "Spam Chat", function(a,s) if s and a[1] then State.SPC=RS.RenderStepped:Connect(function() game.ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(a[1],"All") end) else if State.SPC then State.SPC:Disconnect() end end end, true)
+C("UTL", {"bgui"}, "Billboard GUI", function(a,s) T(a[1], function(p,c,h) if s then local bg=create("BillboardGui",{Name="DBgui",Size=UDim2.new(0,100,0,50),Adornee=h,AlwaysOnTop=true,Parent=h}) create("TextLabel",{Size=UDim2.new(1,0,1,0),Text="Hacked",TextColor3=Color3.new(1,0,0),BackgroundTransparency=1,Parent=bg}) else if h:FindFirstChild("DBgui") then h.DBgui:Destroy() end end end) end, true)
+C("UTL", {"gettingtools", "gettools"}, "Auto get tools", function(a,s) if s then State.AGT=WS.DescendantAdded:Connect(function(d) if d:IsA("Tool") then d.Parent=getChar() end end) else if State.AGT then State.AGT:Disconnect() end end end, true)
+C("UTL", {"breakloops", "break"}, "Stop all active loops", function() State.RunningLoops = false task.wait(0.1) State.RunningLoops = true end)
+
+-- Custom HUBS
+C("UTL", {"realmhub"}, "Load Realm Hub", function() loadstring(game:HttpGet("https://raw.githubusercontent.com/wwwdevanshsssingh12-bit/99-Nights/refs/heads/main/Realm%20Loader.lua"))() end)
+C("UTL", {"inkhub"}, "Load Ink Hub", function() loadstring(game:HttpGet("https://raw.githubusercontent.com/wwwdevanshsssingh12-bit/Devansh-Hub----Ink-Game/refs/heads/main/Loader.lua"))() end)
+C("UTL", {"alkalinehub"}, "Load AlKaline Hub", function() loadstring(game:HttpGet("https://raw.githubusercontent.com/wwwdevanshsssingh12-bit/AlKaline-Hub/refs/heads/main/Loader.lua"))() end)
+C("UTL", {"bloxfruithub"}, "Load Bloxfruit Hub", function() loadstring(game:HttpGet("https://raw.githubusercontent.com/wwwdevanshsssingh12-bit/Devansh-Hub/main/Loader.lua"))() end)
+
+-- Universal Catalog Dresser (The /avatar system)
+C("UTL", {"avatar", "catalog"}, "Free Universal Catalog Dresser [AssetID]", function(a)
+	local id = tonumber(a[1])
+	if id then
+		pcall(function()
+			local typ = MS:GetProductInfo(id).AssetTypeId
+			local desc = getHum():GetAppliedDescription()
+			if typ == 8 or typ == 41 or typ == 42 or typ == 43 then -- Accessories/Hair
+				local acc = desc:GetAccessories(true)
+				table.insert(acc, {AssetId = id, Order = 1, AccessoryType = Enum.AccessoryType.Unknown})
+				desc:SetAccessories(acc, true)
+			elseif typ == 11 then desc.Shirt = id
+			elseif typ == 12 then desc.Pants = id
+			elseif typ == 2 then desc.Face = id
+			end
+			getHum():ApplyDescription(desc)
+			print("Loaded AssetID: " .. id)
+		end)
+	end
+end)
+
+
+-- [[ 🔔 NOTIFICATION SYSTEM ]] --
+local MainGui = create("ScreenGui", {Name="DevanshAdminPanel", Parent=UI_PARENT, ResetOnSpawn=false, DisplayOrder=999})
+local NotifFrame = create("Frame", {BackgroundTransparency=1, Size=UDim2.new(0,220,1,0), Position=isMobile and UDim2.new(0.5,-110,0,20) or UDim2.new(1,-240,0,20), Parent=MainGui})
+create("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,5), Parent=NotifFrame})
+
+local function Notify(title, msg, colorHex)
+	local cHex = colorHex or "00C8FF"
+	local card = create("Frame", {Size=UDim2.new(1,0,0,50), BackgroundColor3=COLORS.CardBg, Position=UDim2.new(1,50,0,0), Parent=NotifFrame, ClipsDescendants=true})
+	addStroke(COLORS.Border, 1, card)
+	create("Frame", {Size=UDim2.new(0,3,1,0), BackgroundColor3=Color3.fromHex(cHex), BorderSizePixel=0, Parent=card})
+	create("TextLabel", {Size=UDim2.new(1,-15,0,20), Position=UDim2.new(0,10,0,5), BackgroundTransparency=1, RichText=true, Text="<b><font color='#"..cHex.."'>"..title.."</font></b>", TextSize=12, Font=Enum.Font.GothamBold, TextXAlignment=Enum.TextXAlignment.Left, Parent=card})
+	create("TextLabel", {Size=UDim2.new(1,-15,0,20), Position=UDim2.new(0,10,0,25), BackgroundTransparency=1, RichText=true, Text="<font color='#8888AA'>"..msg.."</font>", TextSize=11, Font=Enum.Font.Gotham, TextXAlignment=Enum.TextXAlignment.Left, Parent=card})
+	tween(card, T_SPRING, {Position=UDim2.new(0,0,0,0)})
+	task.delay(3, function() tween(card, T_FAST, {Position=UDim2.new(1,50,0,0)}) task.delay(0.2, function() card:Destroy() end) end)
+end
+
+-- [[ 📊 TOP-LEFT FLOATING STATS HUD ]] --
+local StatsHUD = create("TextLabel", {Size=UDim2.new(0,200,0,100), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text="", TextColor3=COLORS.Border, TextStrokeTransparency=0, TextStrokeColor3=Color3.new(0,0,0), TextSize=14, Font=Enum.Font.Code, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top, Parent=MainGui})
+RS.RenderStepped:Connect(function()
+	local t = ""
+	if State.ShowFPS then t=t.."FPS: "..math.floor(WS:GetRealPhysicsFPS()).."\n" end
+	if State.ShowPing then t=t.."Ping: "..math.floor(LP:GetNetworkPing()*1000).."ms\n" end
+	if State.ShowPos then local h=getHRP() if h then t=t.."Pos: "..math.floor(h.Position.X)..", "..math.floor(h.Position.Y)..", "..math.floor(h.Position.Z).."\n" end end
+	StatsHUD.Text = t
+end)
+
+-- [[ 💻 GUI CONSTRUCTION (Compact 320x400) ]] --
+local PillBtn = create("TextButton", {Size=UDim2.new(0,130,0,30), Position=isMobile and UDim2.new(1,-140,1,-50) or UDim2.new(0,20,0,50), BackgroundColor3=COLORS.Bg, Text="", Parent=MainGui})
+addCorner(15, PillBtn) local PillStroke = addStroke(COLORS.Border, 1.2, PillBtn)
+create("TextLabel", {Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, RichText=true, Text="<b><font color='#00C8FF'>⚙ DEVANSH</font></b>", TextSize=12, Font=Enum.Font.GothamBold, Parent=PillBtn})
+task.spawn(function() while true do tween(PillStroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness=2.5}) task.wait(1.5) tween(PillStroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness=1}) task.wait(1.5) end end)
+
+local CG = create("CanvasGroup", {Size=isMobile and UDim2.new(0,300,0,380) or UDim2.new(0,320,0,400), Position=UDim2.new(0.5,0,0.5,0), AnchorPoint=Vector2.new(0.5,0.5), BackgroundTransparency=1, Visible=false, Parent=MainGui})
+local PanelScale = create("UIScale", {Scale=0.92, Parent=CG})
+local PanelFrame = create("Frame", {Size=UDim2.new(1,0,1,0), BackgroundColor3=COLORS.Bg, Parent=CG})
+addCorner(8, PanelFrame); addStroke(COLORS.Border, 1.2, PanelFrame)
+
+local TopBar = create("Frame", {Size=UDim2.new(1,0,0,38), BackgroundTransparency=1, Active=true, Parent=PanelFrame})
+local LogoBox = create("Frame", {Size=UDim2.new(0,24,0,24), Position=UDim2.new(0,10,0,7), BackgroundColor3=COLORS.Border, Parent=TopBar})
+addCorner(4, LogoBox) create("TextLabel", {Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="D", TextColor3=Color3.new(1,1,1), Font=Enum.Font.GothamBold, TextSize=16, Parent=LogoBox})
+create("TextLabel", {Size=UDim2.new(1,-100,0,20), Position=UDim2.new(0,42,0,4), BackgroundTransparency=1, RichText=true, Text="<b><font color='#00C8FF'>DEVANSH</font></b><font color='#CCCCEE'> Admin Panel</font>", Font=Enum.Font.GothamMedium, TextSize=13, TextXAlignment=Enum.TextXAlignment.Left, Parent=TopBar})
+create("TextLabel", {Size=UDim2.new(1,-100,0,15), Position=UDim2.new(0,42,0,20), BackgroundTransparency=1, RichText=true, Text="<font size='10' color='#404468'>v12.0  •  500+ Commands  •  Universal</font>", Font=Enum.Font.Gotham, TextXAlignment=Enum.TextXAlignment.Left, Parent=TopBar})
+local MinBtn = create("TextButton", {Size=UDim2.new(0,30,0,38), Position=UDim2.new(1,-60,0,0), BackgroundTransparency=1, Text="—", TextColor3=COLORS.Text, Font=Enum.Font.GothamBold, TextSize=14, Parent=TopBar})
+local CloseBtn = create("TextButton", {Size=UDim2.new(0,30,0,38), Position=UDim2.new(1,-30,0,0), BackgroundTransparency=1, Text="✕", TextColor3=COLORS.Text, Font=Enum.Font.GothamBold, TextSize=14, Parent=TopBar})
+
+local TabsFrame = create("ScrollingFrame", {Size=UDim2.new(1,-16,0,34), Position=UDim2.new(0,8,0,38), BackgroundTransparency=1, ScrollBarThickness=0, ScrollingDirection=Enum.ScrollingDirection.X, AutomaticCanvasSize=Enum.AutomaticSize.X, CanvasSize=UDim2.new(0,0,0,0), Parent=PanelFrame})
+create("UIListLayout", {FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,4), Parent=TabsFrame})
+
+local SearchFrame = create("Frame", {Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,74), BackgroundColor3=COLORS.CardBg, Parent=PanelFrame})
+addCorner(4, SearchFrame); addStroke(Color3.fromRGB(40,40,60), 1, SearchFrame)
+local SearchBox = create("TextBox", {Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,8,0,0), BackgroundTransparency=1, TextColor3=COLORS.Text, PlaceholderText="Search commands...", PlaceholderColor3=COLORS.Dim, Text="", Font=Enum.Font.Gotham, TextSize=11, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, Parent=SearchFrame})
+
+local ListFrame = create("ScrollingFrame", { Size=UDim2.new(1,-16,1,-148), Position=UDim2.new(0,8,0,104), BackgroundTransparency=1, ScrollBarThickness=2, ScrollBarImageColor3=COLORS.Border, AutomaticCanvasSize=Enum.AutomaticSize.Y, CanvasSize=UDim2.new(0,0,0,0), Parent=PanelFrame})
+create("UIListLayout", {Padding=UDim.new(0,2), Parent=ListFrame})
+
+local InputContainer = create("Frame", {Size=UDim2.new(1,-16,0,36), Position=UDim2.new(0,8,1,-40), BackgroundTransparency=1, Parent=PanelFrame})
+local CmdInput = create("TextBox", {Size=UDim2.new(1,-40,1,0), BackgroundColor3=COLORS.CardBg, Text="", PlaceholderText="Type cmd here... [Use Prefix " .. State.Prefix .. "]", TextColor3=COLORS.Border, PlaceholderColor3=COLORS.Dim, Font=Enum.Font.Code, TextSize=12, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, Parent=InputContainer})
+create("UIPadding", {PaddingLeft=UDim.new(0,8), Parent=CmdInput})
+addCorner(4, CmdInput); create("Frame", {Size=UDim2.new(0,2,1,0), BackgroundColor3=COLORS.Border, BorderSizePixel=0, Parent=CmdInput})
+local RunBtn = create("TextButton", {Size=UDim2.new(0,36,1,0), Position=UDim2.new(1,-36,0,0), BackgroundColor3=COLORS.CardBg, Text="▶", TextColor3=COLORS.Border, Font=Enum.Font.GothamBold, TextSize=14, Parent=InputContainer})
+addCorner(4, RunBtn); addStroke(COLORS.Border, 1, RunBtn)
+
+local activeCategory = "MOV"
+local tabObjects = {}
+
+local function PopulateList(filter)
+	tween(ListFrame, T_FADE, {ScrollBarImageTransparency=1})
+	for _, child in ipairs(ListFrame:GetChildren()) do if child:IsA("TextButton") then tween(child, T_FADE, {BackgroundTransparency=1}) child:Destroy() end end
+	filter = filter and filter:lower() or ""
+	
+	for _, cmd in ipairs(Commands) do
+		local match = false
+		if filter == "" and cmd.c == activeCategory then match = true end
+		if filter ~= "" then
+			if cmd.d:lower():find(filter) then match = true end
+			for _, alias in ipairs(cmd.a) do if alias:lower():find(filter) then match = true end end
+		end
+		
+		if match then
+			local row = create("TextButton", {Size=UDim2.new(1,-4,0,30), BackgroundColor3=COLORS.CardBg, AutoButtonColor=false, Text="", Parent=ListFrame})
+			create("Frame", {Size=UDim2.new(0,2,1,0), BackgroundColor3=COLORS.Border, BorderSizePixel=0, Parent=row})
+			create("TextLabel", {Size=UDim2.new(0,70,1,0), Position=UDim2.new(0,10,0,0), BackgroundTransparency=1, RichText=true, Text="<b><font color='#00C8FF'>"..State.Prefix..cmd.a[1].."</font></b>", Font=Enum.Font.Code, TextSize=11, TextXAlignment=Enum.TextXAlignment.Left, Parent=row})
+			create("TextLabel", {Size=UDim2.new(1,-120,1,0), Position=UDim2.new(0,80,0,0), BackgroundTra
